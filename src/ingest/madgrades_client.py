@@ -2,6 +2,25 @@
 
 Pulls UW-Madison course metadata and historical grade distributions.
 Requires a MADGRADES_API_TOKEN - request one at https://madgrades.com/data.
+
+Response shapes below are taken from the actual jbuilder views in
+github.com/Madgrades/api.madgrades.com (app/views/v1/**), not guessed:
+
+GET /v1/courses (paginated):
+    {current_page, total_pages, total_count, next_page_url,
+     results: [{uuid, number, name, names, subjects: [{name, abbreviation, code}], url}]}
+
+GET /v1/courses/{uuid}/grades - the actual source of GPA + per-instructor
+grade distributions (a_count..f_count, gpa, gpa_total, total):
+    {course_uuid,
+     cumulative: {total, a_count, ab_count, b_count, bc_count, c_count, d_count,
+                  f_count, s_count, u_count, cr_count, n_count, p_count, i_count,
+                  nw_count, nr_count, other_count},
+     course_offerings: [{
+         term_code,
+         cumulative: {...same grade count fields},
+         sections: [{section_number, instructors: [<name>, ...], ...same grade count fields}]
+     }]}
 """
 from __future__ import annotations
 
@@ -25,33 +44,30 @@ class MadgradesClient:
         self.session = session or requests.Session()
         self.session.headers.update({"Authorization": f"Token token={self.api_token}"})
 
-    def _get(self, path: str, params: dict | None = None) -> dict:
-        resp = self.session.get(f"{BASE_URL}{path}", params=params, timeout=30)
+    def _get(self, url: str, params: dict | None = None) -> dict:
+        resp = self.session.get(url, params=params, timeout=30)
         resp.raise_for_status()
         return resp.json()
 
     def iter_courses(self, page_size: int = 100):
-        """Yield every course, following pagination."""
-        params = {"per_page": page_size, "page": 1}
-        while True:
-            data = self._get("/courses", params=params)
+        """Yield every course, following the API's next_page_url pagination."""
+        url = f"{BASE_URL}/courses"
+        params = {"per_page": page_size}
+        while url:
+            data = self._get(url, params=params)
             yield from data["results"]
-            if not data.get("next"):
-                break
-            params["page"] += 1
-            time.sleep(0.2)  # be polite to the API
+            url = data.get("next_page_url")
+            params = None  # next_page_url already carries its own query string
+            if url:
+                time.sleep(0.2)  # be polite to the API
 
-    def get_course(self, course_uuid: str) -> dict:
-        return self._get(f"/courses/{course_uuid}")
-
-    def get_grade_distributions(self, course_uuid: str) -> list[dict]:
-        """Grade distributions for every offering (term x instructor) of a course."""
-        course = self.get_course(course_uuid)
-        return course.get("courseOfferings", [])
+    def get_course_grades(self, course_uuid: str) -> dict:
+        """Cumulative + per-term + per-section-instructor grade distribution for one course."""
+        return self._get(f"{BASE_URL}/courses/{course_uuid}/grades")
 
 
 def fetch_all_courses(client: MadgradesClient, out_dir: Path = RAW_DIR) -> Path:
-    """Pull every course + grade distribution and write raw JSON to disk."""
+    """Pull every course's metadata and write raw JSON to disk."""
     out_dir.mkdir(parents=True, exist_ok=True)
     courses = list(client.iter_courses())
 
@@ -61,8 +77,37 @@ def fetch_all_courses(client: MadgradesClient, out_dir: Path = RAW_DIR) -> Path:
     return out_path
 
 
+def fetch_all_grade_distributions(
+    client: MadgradesClient, courses: list[dict], out_dir: Path = RAW_DIR
+) -> Path:
+    """Pull grade distributions (incl. GPA and per-instructor breakdowns) for every course.
+
+    One request per course, so this is the slow, rate-limited step for 5,600+ courses.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    distributions = []
+    for i, course in enumerate(courses, start=1):
+        try:
+            distributions.append(client.get_course_grades(course["uuid"]))
+        except requests.HTTPError as exc:
+            print(f"Skipping {course.get('number')} ({course['uuid']}): {exc}")
+        if i % 50 == 0:
+            print(f"  fetched grades for {i}/{len(courses)} courses")
+        time.sleep(0.2)
+
+    out_path = out_dir / "grade_distributions.json"
+    out_path.write_text(json.dumps(distributions, indent=2))
+    print(f"Wrote grade distributions for {len(distributions)} courses to {out_path}")
+    return out_path
+
+
 if __name__ == "__main__":
     client = MadgradesClient()
-    out_path = fetch_all_courses(client)
+    courses_path = fetch_all_courses(client)
+    courses = json.loads(courses_path.read_text())
+    grades_path = fetch_all_grade_distributions(client, courses)
+
     if os.environ.get("GCS_BUCKET_RAW"):
-        upload_dataset(out_path, dataset="madgrades", run_date=date.today().strftime("%Y%m%d"))
+        run_date = date.today().strftime("%Y%m%d")
+        upload_dataset(courses_path, dataset="madgrades", run_date=run_date)
+        upload_dataset(grades_path, dataset="madgrades", run_date=run_date)
