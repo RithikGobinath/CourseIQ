@@ -67,6 +67,13 @@ class RMPClient:
             {
                 "Authorization": f"Basic {_AUTH}",
                 "Content-Type": "application/json",
+                # The endpoint 403s on Python's default requests User-Agent -
+                # confirmed empirically, not a bot-detection bypass, just
+                # matching what the RMP web client itself sends.
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+                ),
             }
         )
 
