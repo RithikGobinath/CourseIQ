@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Data (raw/processed data lives in GCS, not in git)
+data/raw/
+data/processed/
+*.csv
+*.parquet
+!data/**/.gitkeep
+
+# GCP credentials
+*service-account*.json
+gcp-key.json
+
+# Docker
+.dockerignore
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

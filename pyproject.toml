@@ -1,0 +1,30 @@
+[project]
+name = "courseiq"
+version = "0.1.0"
+description = "Grade outcome classifier for UW-Madison courses using Madgrades and RateMyProfessor data"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.2",
+    "google-cloud-storage>=2.16",
+    "google-cloud-bigquery>=3.25",
+    "xgboost>=2.0",
+    "scikit-learn>=1.4",
+    "mlflow>=2.13",
+    "optuna>=3.6",
+    "python-dotenv>=1.0",
+    "rapidfuzz>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
