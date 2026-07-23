@@ -118,8 +118,12 @@ def fetch_all_ratings(client: RMPClient, out_dir: Path = RAW_DIR) -> Path:
     return out_path
 
 
-if __name__ == "__main__":
+def run(upload: bool = True) -> None:
     client = RMPClient()
     out_path = fetch_all_ratings(client)
-    if os.environ.get("GCS_BUCKET_RAW"):
+    if upload and os.environ.get("GCS_BUCKET_RAW"):
         upload_dataset(out_path, dataset="rmp", run_date=date.today().strftime("%Y%m%d"))
+
+
+if __name__ == "__main__":
+    run()

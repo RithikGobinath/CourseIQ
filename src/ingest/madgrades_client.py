@@ -101,13 +101,17 @@ def fetch_all_grade_distributions(
     return out_path
 
 
-if __name__ == "__main__":
+def run(upload: bool = True) -> None:
     client = MadgradesClient()
     courses_path = fetch_all_courses(client)
     courses = json.loads(courses_path.read_text())
     grades_path = fetch_all_grade_distributions(client, courses)
 
-    if os.environ.get("GCS_BUCKET_RAW"):
+    if upload and os.environ.get("GCS_BUCKET_RAW"):
         run_date = date.today().strftime("%Y%m%d")
         upload_dataset(courses_path, dataset="madgrades", run_date=run_date)
         upload_dataset(grades_path, dataset="madgrades", run_date=run_date)
+
+
+if __name__ == "__main__":
+    run()
