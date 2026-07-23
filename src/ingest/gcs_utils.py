@@ -40,3 +40,20 @@ def latest_version(dataset: str, bucket_name: str | None = None) -> str | None:
     list(prefixes)  # populate .prefixes
     versions = sorted(p.removeprefix(f"{dataset}/") for p in prefixes.prefixes)
     return versions[-1].rstrip("/") if versions else None
+
+
+def download_dataset(dataset: str, filename: str, dest_dir: Path, version: str | None = None, bucket_name: str | None = None) -> Path:
+    """Download <dataset>/<version>/<filename> from GCS, defaulting to the latest version."""
+    bucket_name = bucket_name or os.environ["GCS_BUCKET_RAW"]
+    version = version or latest_version(dataset, bucket_name)
+    if version is None:
+        raise FileNotFoundError(f"No versions of dataset {dataset!r} found in gs://{bucket_name}")
+
+    client = storage.Client()
+    blob = client.bucket(bucket_name).blob(f"{dataset}/{version}/{filename}")
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / filename
+    blob.download_to_filename(str(dest_path))
+    print(f"Downloaded gs://{bucket_name}/{blob.name} -> {dest_path}")
+    return dest_path
