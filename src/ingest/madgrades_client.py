@@ -8,9 +8,12 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import date
 from pathlib import Path
 
 import requests
+
+from src.ingest.gcs_utils import upload_dataset
 
 BASE_URL = "https://api.madgrades.com/v1"
 RAW_DIR = Path("data/raw/madgrades")
@@ -60,4 +63,6 @@ def fetch_all_courses(client: MadgradesClient, out_dir: Path = RAW_DIR) -> Path:
 
 if __name__ == "__main__":
     client = MadgradesClient()
-    fetch_all_courses(client)
+    out_path = fetch_all_courses(client)
+    if os.environ.get("GCS_BUCKET_RAW"):
+        upload_dataset(out_path, dataset="madgrades", run_date=date.today().strftime("%Y%m%d"))

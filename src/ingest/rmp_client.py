@@ -12,10 +12,14 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import time
+from datetime import date
 from pathlib import Path
 
 import requests
+
+from src.ingest.gcs_utils import upload_dataset
 
 GRAPHQL_URL = "https://www.ratemyprofessors.com/graphql"
 # Static token RMP's own web client uses for unauthenticated GraphQL requests.
@@ -116,4 +120,6 @@ def fetch_all_ratings(client: RMPClient, out_dir: Path = RAW_DIR) -> Path:
 
 if __name__ == "__main__":
     client = RMPClient()
-    fetch_all_ratings(client)
+    out_path = fetch_all_ratings(client)
+    if os.environ.get("GCS_BUCKET_RAW"):
+        upload_dataset(out_path, dataset="rmp", run_date=date.today().strftime("%Y%m%d"))
