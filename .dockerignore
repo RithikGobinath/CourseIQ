@@ -1,0 +1,14 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+data/raw
+data/processed
+mlruns
+mlartifacts
+*.json
+!pyproject.toml
+tests
+notebooks
+.env

@@ -26,9 +26,6 @@ data/processed/
 *service-account*.json
 gcp-key.json
 
-# Docker
-.dockerignore
-
 # OS / editor
 .DS_Store
 .vscode/
