@@ -12,6 +12,12 @@ from pathlib import Path
 from google.cloud import storage
 
 
+def _client() -> storage.Client:
+    # google-cloud-storage can't infer a project from user (as opposed to
+    # service-account) ADC credentials, so this has to be explicit.
+    return storage.Client(project=os.environ["GCP_PROJECT_ID"])
+
+
 def upload_dataset(local_path: Path, dataset: str, run_date: str, bucket_name: str | None = None) -> str:
     """Upload a local file to gs://<bucket>/<dataset>/v<run_date>/<filename>.
 
@@ -20,7 +26,7 @@ def upload_dataset(local_path: Path, dataset: str, run_date: str, bucket_name: s
     and testable.
     """
     bucket_name = bucket_name or os.environ["GCS_BUCKET_RAW"]
-    client = storage.Client()
+    client = _client()
     bucket = client.bucket(bucket_name)
 
     blob_path = f"{dataset}/v{run_date}/{local_path.name}"
@@ -35,7 +41,7 @@ def upload_dataset(local_path: Path, dataset: str, run_date: str, bucket_name: s
 def latest_version(dataset: str, bucket_name: str | None = None) -> str | None:
     """Return the most recent vYYYYMMDD prefix for a dataset, or None if empty."""
     bucket_name = bucket_name or os.environ["GCS_BUCKET_RAW"]
-    client = storage.Client()
+    client = _client()
     prefixes = client.list_blobs(bucket_name, prefix=f"{dataset}/", delimiter="/")
     list(prefixes)  # populate .prefixes
     versions = sorted(p.removeprefix(f"{dataset}/") for p in prefixes.prefixes)
@@ -49,7 +55,7 @@ def download_dataset(dataset: str, filename: str, dest_dir: Path, version: str |
     if version is None:
         raise FileNotFoundError(f"No versions of dataset {dataset!r} found in gs://{bucket_name}")
 
-    client = storage.Client()
+    client = _client()
     blob = client.bucket(bucket_name).blob(f"{dataset}/{version}/{filename}")
 
     dest_dir.mkdir(parents=True, exist_ok=True)
