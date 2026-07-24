@@ -5,11 +5,18 @@ for bringing RMP ratings into the training features. Uses token_sort_ratio
 so word order ("Last First" vs "First Last") doesn't matter, and keeps only
 matches above a confidence threshold - everything else is left unmatched
 rather than forced to a wrong professor.
+
+Madgrades names are ALL CAPS ("STEPHANIE KANN") and RMP names are Title
+Case ("Stephanie Kann") - rapidfuzz's scorers are case-sensitive unless
+given a normalizing processor, so `utils.default_process` (lowercase +
+strip punctuation) is required here or every score comes back near zero.
+Confirmed by testing: without it, a real live pull matched 4 of 21,302
+instructor names; with it, exact-name matches correctly score 100.
 """
 from __future__ import annotations
 
 import pandas as pd
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz, process, utils
 
 MIN_MATCH_SCORE = 85.0  # 0-100; below this we'd rather have a missing match than a wrong one
 
@@ -26,7 +33,7 @@ def match_instructors(madgrades_names: list[str], rmp_df: pd.DataFrame) -> pd.Da
     for name in set(madgrades_names):
         if not name:
             continue
-        match = process.extractOne(name, rmp_full_names, scorer=fuzz.token_sort_ratio)
+        match = process.extractOne(name, rmp_full_names, scorer=fuzz.token_sort_ratio, processor=utils.default_process)
         if match is None:
             rows.append({"madgrades_instructor_name": name, "rmp_id": None, "match_score": None})
             continue
