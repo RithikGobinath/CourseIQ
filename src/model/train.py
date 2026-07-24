@@ -107,12 +107,18 @@ def train(feature_df: pd.DataFrame, n_trials: int = 30) -> None:
         mlflow.log_metric("accuracy", acc)
         mlflow.log_metric("baseline_accuracy", baseline_acc)
         mlflow.log_metric("lift_over_baseline", acc - baseline_acc)
+        # Rare classes (D/F are <0.1% of rows) may not appear at all in the
+        # holdout year, so label indices must be passed explicitly rather
+        # than inferred from y_test/preds, or target_names length mismatches.
+        all_labels = range(len(label_encoder.classes_))
         mlflow.log_dict(
-            classification_report(y_test, preds, target_names=label_encoder.classes_, output_dict=True),
+            classification_report(
+                y_test, preds, labels=all_labels, target_names=label_encoder.classes_, output_dict=True, zero_division=0
+            ),
             "classification_report.json",
         )
         mlflow.log_dict(
-            {"confusion_matrix": confusion_matrix(y_test, preds).tolist(), "labels": label_encoder.classes_.tolist()},
+            {"confusion_matrix": confusion_matrix(y_test, preds, labels=all_labels).tolist(), "labels": label_encoder.classes_.tolist()},
             "confusion_matrix.json",
         )
         mlflow.xgboost.log_model(best_model, artifact_path="model", registered_model_name="courseiq-grade-classifier")
