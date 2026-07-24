@@ -18,11 +18,15 @@ from google.cloud import bigquery
 from src.ingest.gcs_utils import download_dataset
 from src.pipeline.match_instructors import match_instructors
 
-GRADE_COUNT_FIELDS = [
-    "total", "a_count", "ab_count", "b_count", "bc_count", "c_count", "d_count",
-    "f_count", "s_count", "u_count", "cr_count", "n_count", "p_count", "i_count",
-    "nw_count", "nr_count", "other_count",
-]
+# Madgrades' JSON is camelCase (confirmed against live responses); these
+# snake_case names are what we store in our own tables/DataFrames.
+GRADE_COUNT_FIELDS = {
+    "total": "total", "aCount": "a_count", "abCount": "ab_count", "bCount": "b_count",
+    "bcCount": "bc_count", "cCount": "c_count", "dCount": "d_count", "fCount": "f_count",
+    "sCount": "s_count", "uCount": "u_count", "crCount": "cr_count", "nCount": "n_count",
+    "pCount": "p_count", "iCount": "i_count", "nwCount": "nw_count", "nrCount": "nr_count",
+    "otherCount": "other_count",
+}
 
 
 def flatten_courses(raw_courses: list[dict]) -> pd.DataFrame:
@@ -52,21 +56,22 @@ def flatten_grade_distributions(raw_grades: list[dict]) -> pd.DataFrame:
     """
     rows = []
     for course_grades in raw_grades:
-        course_uuid = course_grades.get("course_uuid")
-        for offering in course_grades.get("course_offerings", []):
-            term_code = offering.get("term_code")
+        course_uuid = course_grades.get("courseUuid")
+        for offering in course_grades.get("courseOfferings", []):
+            term_code = offering.get("termCode")
             for section in offering.get("sections", []):
                 instructors = section.get("instructors") or [None]
-                # instructors can be plain name strings or {"name": ...} dicts
+                # instructors are {"id": ..., "name": ...} dicts, but handle
+                # plain strings too in case that ever changes upstream
                 names = [i["name"] if isinstance(i, dict) else i for i in instructors]
                 for name in names:
                     row = {
                         "course_uuid": course_uuid,
                         "term_code": term_code,
-                        "section_number": section.get("section_number"),
+                        "section_number": section.get("sectionNumber"),
                         "instructor_name": name,
                     }
-                    row.update({f: section.get(f) for f in GRADE_COUNT_FIELDS})
+                    row.update({snake: section.get(camel) for camel, snake in GRADE_COUNT_FIELDS.items()})
                     rows.append(row)
     return pd.DataFrame(rows)
 

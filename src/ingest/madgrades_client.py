@@ -3,23 +3,23 @@
 Pulls UW-Madison course metadata and historical grade distributions.
 Requires a MADGRADES_API_TOKEN - request one at https://madgrades.com/data.
 
-Response shapes below are taken from the actual jbuilder views in
-github.com/Madgrades/api.madgrades.com (app/views/v1/**), not guessed:
+Response shapes below are confirmed against live API responses (the Rails
+app camelizes JSON keys, which isn't visible in the jbuilder source alone):
 
 GET /v1/courses (paginated):
-    {current_page, total_pages, total_count, next_page_url,
+    {currentPage, totalPages, totalCount, nextPageUrl,
      results: [{uuid, number, name, names, subjects: [{name, abbreviation, code}], url}]}
 
 GET /v1/courses/{uuid}/grades - the actual source of GPA + per-instructor
-grade distributions (a_count..f_count, gpa, gpa_total, total):
-    {course_uuid,
-     cumulative: {total, a_count, ab_count, b_count, bc_count, c_count, d_count,
-                  f_count, s_count, u_count, cr_count, n_count, p_count, i_count,
-                  nw_count, nr_count, other_count},
-     course_offerings: [{
-         term_code,
+grade distributions:
+    {courseUuid,
+     cumulative: {total, aCount, abCount, bCount, bcCount, cCount, dCount,
+                  fCount, sCount, uCount, crCount, nCount, pCount, iCount,
+                  nwCount, nrCount, otherCount},
+     courseOfferings: [{
+         termCode,
          cumulative: {...same grade count fields},
-         sections: [{section_number, instructors: [<name>, ...], ...same grade count fields}]
+         sections: [{sectionNumber, instructors: [{id, name}, ...], ...same grade count fields}]
      }]}
 """
 from __future__ import annotations
@@ -50,14 +50,14 @@ class MadgradesClient:
         return resp.json()
 
     def iter_courses(self, page_size: int = 100):
-        """Yield every course, following the API's next_page_url pagination."""
+        """Yield every course, following the API's nextPageUrl pagination."""
         url = f"{BASE_URL}/courses"
         params = {"per_page": page_size}
         while url:
             data = self._get(url, params=params)
             yield from data["results"]
-            url = data.get("next_page_url")
-            params = None  # next_page_url already carries its own query string
+            url = data.get("nextPageUrl")
+            params = None  # nextPageUrl already carries its own query string
             if url:
                 time.sleep(0.2)  # be polite to the API
 
