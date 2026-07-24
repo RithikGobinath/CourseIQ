@@ -3,11 +3,24 @@ import pandas as pd
 from src.model.train import build_design_matrix, majority_class_baseline
 
 
-def test_majority_class_baseline_accuracy():
+def test_majority_class_baseline_accuracy_unweighted():
     y_train = pd.Series(["A", "A", "A", "B"])
     y_test = pd.Series(["A", "A", "B"])
+    w_train = pd.Series([1, 1, 1, 1])
+    w_test = pd.Series([1, 1, 1])
     # majority class is "A"; 2 of 3 test rows are "A"
-    assert majority_class_baseline(y_train, y_test) == 2 / 3
+    assert majority_class_baseline(y_train, y_test, w_train, w_test) == 2 / 3
+
+
+def test_majority_class_baseline_respects_weights():
+    # unweighted majority would be "A" (2 rows) but "B"'s single row
+    # represents far more enrolled students, so weighted majority is "B"
+    y_train = pd.Series(["A", "A", "B"])
+    w_train = pd.Series([1, 1, 100])
+    y_test = pd.Series(["B", "B", "A"])
+    w_test = pd.Series([50, 50, 1])
+    # predicting "B" gets both B rows right (weight 100) out of 101 total
+    assert majority_class_baseline(y_train, y_test, w_train, w_test) == 100 / 101
 
 
 def test_build_design_matrix_has_expected_columns():

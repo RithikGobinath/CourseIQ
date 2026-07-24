@@ -27,13 +27,23 @@ def build_design_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, LabelEncoder]:
     return X, X.columns.tolist()
 
 
-def majority_class_baseline(y_train: pd.Series, y_test: pd.Series) -> float:
-    majority = y_train.mode().iloc[0]
-    predictions = pd.Series(majority, index=y_test.index)
-    return accuracy_score(y_test, predictions)
+def majority_class_baseline(y_train: pd.Series, y_test: pd.Series, weights_train: pd.Series, weights_test: pd.Series) -> float:
+    """Enrollment-weighted majority-class accuracy.
+
+    Weighting by enrollment (students per offering) matters because the raw
+    row grain is one row per course-offering-instructor: a 3-student
+    independent-study section otherwise counts the same as a 300-student
+    lecture, which massively inflates the "majority class" (small
+    always-A sections dominate the row count even though they represent
+    few actual students).
+    """
+    weighted_counts = pd.Series(weights_train.values, index=y_train).groupby(level=0).sum()
+    majority = weighted_counts.idxmax()
+    correct = (pd.Series(y_test) == majority).astype(float)
+    return float((correct * weights_test.values).sum() / weights_test.sum())
 
 
-def objective(trial: optuna.Trial, X_train, y_train, X_valid, y_valid, num_classes: int) -> float:
+def objective(trial: optuna.Trial, X_train, y_train, w_train, X_valid, y_valid, w_valid, num_classes: int) -> float:
     params = {
         "objective": "multi:softmax",
         "num_class": num_classes,
@@ -45,8 +55,8 @@ def objective(trial: optuna.Trial, X_train, y_train, X_valid, y_valid, num_class
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
     }
     model = XGBClassifier(**params, eval_metric="mlogloss")
-    model.fit(X_train, y_train)
-    return accuracy_score(y_valid, model.predict(X_valid))
+    model.fit(X_train, y_train, sample_weight=w_train)
+    return accuracy_score(y_valid, model.predict(X_valid), sample_weight=w_valid)
 
 
 def train(feature_df: pd.DataFrame, n_trials: int = 30) -> None:
@@ -61,17 +71,24 @@ def train(feature_df: pd.DataFrame, n_trials: int = 30) -> None:
     y_train = label_encoder.fit_transform(train_df[TARGET])
     y_test = label_encoder.transform(test_df[TARGET])
 
+    # Weight by enrollment: a 300-student lecture section should count far
+    # more than a 3-student independent-study section that's almost always
+    # an A. Without this, majority-class "accuracy" is dominated by row
+    # count (offerings), not by actual students affected.
+    w_train = train_df["enrollment"].clip(lower=1)
+    w_test = test_df["enrollment"].clip(lower=1)
+
     mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
     mlflow.set_experiment("courseiq-grade-classifier")
 
-    baseline_acc = majority_class_baseline(pd.Series(y_train), pd.Series(y_test))
+    baseline_acc = majority_class_baseline(y_train, y_test, w_train, w_test)
     with mlflow.start_run(run_name="majority-class-baseline"):
         mlflow.log_metric("accuracy", baseline_acc)
-    print(f"Baseline (majority class) accuracy: {baseline_acc:.3f}")
+    print(f"Baseline (enrollment-weighted majority class) accuracy: {baseline_acc:.3f}")
 
     study = optuna.create_study(direction="maximize")
     study.optimize(
-        lambda t: objective(t, X_train_raw, y_train, X_test_raw, y_test, len(label_encoder.classes_)),
+        lambda t: objective(t, X_train_raw, y_train, w_train, X_test_raw, y_test, w_test, len(label_encoder.classes_)),
         n_trials=n_trials,
     )
 
@@ -83,10 +100,10 @@ def train(feature_df: pd.DataFrame, n_trials: int = 30) -> None:
             num_class=len(label_encoder.classes_),
             eval_metric="mlogloss",
         )
-        best_model.fit(X_train_raw, y_train)
+        best_model.fit(X_train_raw, y_train, sample_weight=w_train)
         preds = best_model.predict(X_test_raw)
 
-        acc = accuracy_score(y_test, preds)
+        acc = accuracy_score(y_test, preds, sample_weight=w_test)
         mlflow.log_metric("accuracy", acc)
         mlflow.log_metric("baseline_accuracy", baseline_acc)
         mlflow.log_metric("lift_over_baseline", acc - baseline_acc)
