@@ -1,0 +1,71 @@
+<svg viewBox="0 0 1160 300" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3987e5"/>
+    </marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#898781"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1160" height="300" fill="#0d0d0d"/>
+
+  <!-- Sources -->
+  <g>
+    <rect x="20" y="40" width="150" height="56" rx="10" fill="#1a1a19" stroke="rgba(255,255,255,0.10)"/>
+    <text x="95" y="63" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Madgrades API</text>
+    <text x="95" y="80" text-anchor="middle" fill="#898781" font-size="10.5">courses + grades</text>
+
+    <rect x="20" y="204" width="150" height="56" rx="10" fill="#1a1a19" stroke="rgba(255,255,255,0.10)"/>
+    <text x="95" y="227" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">RateMyProfessor</text>
+    <text x="95" y="244" text-anchor="middle" fill="#898781" font-size="10.5">instructor ratings</text>
+  </g>
+
+  <line x1="170" y1="68" x2="228" y2="126" stroke="#3987e5" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="170" y1="232" x2="228" y2="174" stroke="#3987e5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- GCS -->
+  <rect x="232" y="122" width="150" height="56" rx="10" fill="#1a1a19" stroke="#3987e5"/>
+  <text x="307" y="145" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">GCS (raw)</text>
+  <text x="307" y="162" text-anchor="middle" fill="#898781" font-size="10.5">date-versioned JSON</text>
+
+  <line x1="382" y1="150" x2="440" y2="150" stroke="#3987e5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- BigQuery -->
+  <rect x="444" y="122" width="150" height="56" rx="10" fill="#1a1a19" stroke="#3987e5"/>
+  <text x="519" y="145" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">BigQuery</text>
+  <text x="519" y="162" text-anchor="middle" fill="#898781" font-size="10.5">clean + matched tables</text>
+
+  <line x1="594" y1="150" x2="652" y2="150" stroke="#3987e5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Features -->
+  <rect x="656" y="122" width="150" height="56" rx="10" fill="#1a1a19" stroke="#3987e5"/>
+  <text x="731" y="145" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">Feature table</text>
+  <text x="731" y="162" text-anchor="middle" fill="#898781" font-size="10.5">enrollment-weighted</text>
+
+  <line x1="806" y1="150" x2="864" y2="150" stroke="#3987e5" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Model -->
+  <rect x="868" y="122" width="150" height="56" rx="10" fill="#1a1a19" stroke="#3987e5"/>
+  <text x="943" y="145" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600">XGBoost</text>
+  <text x="943" y="162" text-anchor="middle" fill="#898781" font-size="10.5">Optuna + MLflow</text>
+
+  <line x1="1018" y1="150" x2="1076" y2="150" stroke="#0ca30c" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- registry -->
+  <rect x="1080" y="122" width="60" height="56" rx="10" fill="#1a1a19" stroke="#0ca30c"/>
+  <text x="1110" y="147" text-anchor="middle" fill="#0ca30c" font-size="11" font-weight="700">v1</text>
+  <text x="1110" y="161" text-anchor="middle" fill="#898781" font-size="9">model</text>
+
+  <!-- Scheduler loop -->
+  <rect x="444" y="230" width="150" height="52" rx="10" fill="#1a1a19" stroke="rgba(255,255,255,0.10)"/>
+  <text x="519" y="251" text-anchor="middle" fill="#ffffff" font-size="12.5" font-weight="600">Cloud Scheduler</text>
+  <text x="519" y="267" text-anchor="middle" fill="#898781" font-size="10">weekly, Mon 06:00</text>
+
+  <rect x="656" y="230" width="150" height="52" rx="10" fill="#1a1a19" stroke="rgba(255,255,255,0.10)"/>
+  <text x="731" y="251" text-anchor="middle" fill="#ffffff" font-size="12.5" font-weight="600">Cloud Run Job</text>
+  <text x="731" y="267" text-anchor="middle" fill="#898781" font-size="10">Dockerized refresh</text>
+
+  <line x1="594" y1="256" x2="652" y2="256" stroke="#898781" stroke-width="1.5" marker-end="url(#arrowMuted)"/>
+  <path d="M 731 230 C 731 205, 307 205, 307 178" fill="none" stroke="#898781" stroke-width="1.5" stroke-dasharray="3,4" marker-end="url(#arrowMuted)"/>
+</svg>

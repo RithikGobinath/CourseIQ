@@ -4,144 +4,315 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CourseIQ — UW-Madison Grade Outcome Classifier</title>
+<meta name="description" content="A grade outcome classifier for UW-Madison courses, trained on real Madgrades grade history and RateMyProfessor instructor ratings. XGBoost, MLflow, BigQuery, Docker, Cloud Run.">
+<meta property="og:title" content="CourseIQ — UW-Madison Grade Outcome Classifier">
+<meta property="og:description" content="78.8% baseline → 80.1% tuned XGBoost accuracy predicting course grade outcomes from real Madgrades + RateMyProfessor data.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%233987e5'/%3E%3Ctext x='12' y='17' font-family='system-ui' font-weight='700' font-size='13' fill='white' text-anchor='middle'%3ECQ%3C/text%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #0b0e14;
-    --panel: #12161f;
-    --border: #232838;
-    --text: #e6e9ef;
-    --muted: #8b93a7;
-    --accent: #6ea8fe;
-    --good: #4caf7d;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --panel: #15151a;
+    --border: rgba(255,255,255,0.10);
+    --border-strong: rgba(255,255,255,0.16);
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --grid: #2c2c2a;
+    --accent: #3987e5;
+    --accent-dim: #1c5cab;
+    --good: #0ca30c;
+    --radius: 12px;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--text);
+    background: var(--page);
+    color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.55;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 56px 24px 96px; }
-  header { margin-bottom: 40px; }
-  h1 { font-size: 2rem; margin: 0 0 8px; }
-  .subtitle { color: var(--muted); font-size: 1.05rem; }
-  .stack { margin-top: 12px; font-size: 0.85rem; color: var(--muted); }
-  .stack code { background: var(--panel); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-  section { margin: 48px 0; }
-  h2 { font-size: 1.3rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px; }
+  /* Hero */
+  .hero {
+    position: relative;
+    padding: 88px 0 56px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -220px; left: 50%;
+    width: 900px; height: 500px;
+    transform: translateX(-50%);
+    background: radial-gradient(closest-side, rgba(57,135,229,0.16), transparent);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--good); font-size: 0.82rem; font-weight: 600;
+    background: rgba(12,163,12,0.10); border: 1px solid rgba(12,163,12,0.25);
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 20px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+  h1 { font-size: clamp(2rem, 4vw, 2.7rem); margin: 0 0 14px; letter-spacing: -0.02em; }
+  .subtitle { color: var(--ink-secondary); font-size: 1.1rem; max-width: 640px; margin: 0 0 24px; }
+  .stack { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .pill {
+    font-size: 0.8rem; color: var(--ink-secondary);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: 999px;
+  }
+  .hero-links { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 8px; font-size: 0.92rem; font-weight: 600;
+    border: 1px solid var(--border-strong);
+  }
+  .btn:hover { text-decoration: none; border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #2f78d0; }
 
-  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
-  .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
-  .metric .value { font-size: 1.7rem; font-weight: 700; }
-  .metric .value.good { color: var(--good); }
-  .metric .label { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
+  section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+  .section-head { margin-bottom: 28px; }
+  h2 { font-size: 1.4rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .section-desc { color: var(--ink-muted); font-size: 0.95rem; margin: 0; max-width: 620px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--border); }
-  th:first-child, td:first-child { text-align: left; }
-  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  /* Stat tiles */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+  .metric .value { font-size: 2rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
+  .metric .value.accent { color: var(--accent); }
+  .metric .delta { display: inline-flex; align-items: center; gap: 4px; color: var(--good); font-size: 0.85rem; font-weight: 600; margin-top: 6px; }
+  .metric .label { color: var(--ink-muted); font-size: 0.82rem; margin-top: 8px; }
 
-  .cm-table td, .cm-table th { text-align: center; padding: 8px; }
-  .cm-table .diag { background: rgba(76, 175, 125, 0.18); font-weight: 600; }
-  .cm-table .rowlabel { text-align: right; color: var(--muted); font-weight: 600; }
+  .note {
+    color: var(--ink-muted); font-size: 0.88rem; margin-top: 18px;
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent-dim);
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .note strong { color: var(--ink-secondary); }
 
-  .note { color: var(--muted); font-size: 0.88rem; margin-top: 14px; }
-  footer { color: var(--muted); font-size: 0.85rem; margin-top: 64px; border-top: 1px solid var(--border); padding-top: 24px; }
+  /* Architecture */
+  .diagram-frame {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; overflow-x: auto;
+  }
+  .diagram-frame img { display: block; width: 100%; min-width: 720px; }
+
+  /* Bar chart */
+  .barchart { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+  .bar-row { display: grid; grid-template-columns: 52px 1fr 56px; align-items: center; gap: 12px; }
+  .bar-label { font-size: 0.88rem; color: var(--ink-secondary); font-weight: 600; }
+  .bar-track { background: var(--grid); border-radius: 4px; height: 20px; position: relative; }
+  .bar-fill { background: var(--accent); height: 20px; border-radius: 4px; min-width: 4px; }
+  .bar-value { font-size: 0.85rem; color: var(--ink-muted); font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; }
+  th { color: var(--ink-muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .heatmap td:not(:first-child) { text-align: center; border-radius: 6px; font-weight: 600; border-bottom: none; }
+  .heatmap td { padding: 12px 8px; }
+  .heatmap tr { }
+  .heatmap-wrap { overflow-x: auto; }
+  .heatmap table { border-spacing: 4px; border-collapse: separate; min-width: 480px; }
+  .heatmap th { border-bottom: none; padding-bottom: 8px; }
+
+  .legend-scale { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 0.78rem; color: var(--ink-muted); }
+  .legend-scale .ramp { width: 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1a1a19, #3987e5); border: 1px solid var(--border); }
+
+  .pipeline-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+  .pipeline-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 14px; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: var(--accent);
+  }
+  .pipeline-steps .step-title { font-weight: 600; margin-bottom: 2px; }
+  .pipeline-steps .step-desc { color: var(--ink-muted); font-size: 0.9rem; }
+
+  footer { padding: 40px 0 64px; color: var(--ink-muted); font-size: 0.88rem; }
+  footer a { color: var(--ink-secondary); }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
-    <h1>CourseIQ</h1>
-    <div class="subtitle">Grade outcome classifier for UW–Madison courses, built on real Madgrades grade history and RateMyProfessor instructor ratings.</div>
-    <div class="stack">
-      <code>Python</code><code>XGBoost</code><code>MLflow</code><code>Docker</code><code>BigQuery</code><code>Google Cloud Storage</code>
+  <div class="hero">
+    <div class="wrap hero-inner">
+      <div class="eyebrow"><span class="dot"></span> Live pipeline · real data · deployed weekly refresh</div>
+      <h1>CourseIQ</h1>
+      <p class="subtitle">A grade outcome classifier for UW–Madison courses, trained on real Madgrades grade history and RateMyProfessor instructor ratings — not a toy dataset, the actual thing.</p>
+      <div class="stack">
+        <span class="pill">Python</span><span class="pill">XGBoost</span><span class="pill">MLflow</span><span class="pill">Docker</span><span class="pill">BigQuery</span><span class="pill">Google Cloud Storage</span>
+      </div>
+      <div class="hero-links">
+        <a class="btn primary" href="https://github.com/RithikGobinath/CourseIQ">View source on GitHub →</a>
+        <a class="btn" href="#results">Jump to results</a>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <section>
-    <h2>Dataset</h2>
-    <div class="metrics">
-      <div class="metric"><div class="value">11,511</div><div class="label">Courses pulled</div></div>
-      <div class="metric"><div class="value">383,120</div><div class="label">Section–instructor grade records</div></div>
-      <div class="metric"><div class="value">5,096</div><div class="label">RMP instructor ratings</div></div>
-      <div class="metric"><div class="value">2006–2025</div><div class="label">Term coverage</div></div>
-    </div>
-  </section>
+  <div class="wrap">
 
-  <section>
-    <h2>Model performance</h2>
-    <div class="metrics">
-      <div class="metric"><div class="value">78.8%</div><div class="label">Enrollment-weighted baseline<br>(majority class)</div></div>
-      <div class="metric"><div class="value good">80.1%</div><div class="label">Tuned XGBoost accuracy<br>(30-trial Optuna search)</div></div>
-      <div class="metric"><div class="value good">+1.3 pts</div><div class="label">Lift over baseline</div></div>
-    </div>
-    <p class="note">
-      Evaluated on a time-based holdout (most recent academic year), not a random split, since a random split would leak
-      recurring course/instructor grade patterns across train and test. Baseline and training are both weighted by
-      section enrollment — an unweighted row-count majority-class baseline came out to 75.8%, inflated by tiny
-      always-A independent-study sections outnumbering large lecture courses in raw row count.
-    </p>
-  </section>
+    <section>
+      <div class="section-head">
+        <h2>Dataset</h2>
+        <p class="section-desc">Pulled live from Madgrades and RateMyProfessor's public APIs — every number below is from an actual run, not a sample or a mock.</p>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="value">11,511</div><div class="label">Courses pulled</div></div>
+        <div class="metric"><div class="value">383,120</div><div class="label">Section–instructor grade records</div></div>
+        <div class="metric"><div class="value">5,096</div><div class="label">RMP instructor ratings</div></div>
+        <div class="metric"><div class="value">2006–2025</div><div class="label">Term coverage, 20 academic years</div></div>
+      </div>
+    </section>
 
-  <section>
-    <h2>Per-class results</h2>
-    <table>
-      <thead>
-        <tr><th>Grade</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>A</td><td>0.907</td><td>0.962</td><td>0.934</td><td>9,139</td></tr>
-        <tr><td>AB</td><td>0.490</td><td>0.156</td><td>0.237</td><td>767</td></tr>
-        <tr><td>B</td><td>0.429</td><td>0.434</td><td>0.432</td><td>580</td></tr>
-        <tr><td>C</td><td>0.500</td><td>0.225</td><td>0.310</td><td>40</td></tr>
-        <tr><td>BC</td><td>0.000</td><td>0.000</td><td>0.000</td><td>28</td></tr>
-      </tbody>
-    </table>
-    <p class="note">D and F grades are under 0.1% of all records and don't appear in the holdout year at all, so they're
-      omitted here. The model is strong on the dominant A class and picks up real signal on B, but AB/BC recall is
-      weak — those grades sit in a narrow band the available features (course metadata, historical GPA, RMP ratings)
-      don't separate well.</p>
-  </section>
+    <section id="results">
+      <div class="section-head">
+        <h2>Model performance</h2>
+        <p class="section-desc">Predicting the modal grade (A / AB / B / BC / C / D / F) for a course offering, evaluated on a time-based holdout — the most recent academic year, never seen during training.</p>
+      </div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="value">78.8%</div>
+          <div class="label">Enrollment-weighted baseline (majority class)</div>
+        </div>
+        <div class="metric">
+          <div class="value accent">80.1%</div>
+          <div class="delta">↑ +1.3 pts over baseline</div>
+          <div class="label">Tuned XGBoost, 30-trial Optuna search</div>
+        </div>
+      </div>
+      <div class="note">
+        <strong>Why "enrollment-weighted":</strong> the raw row grain is one row per course-offering-instructor. An
+        unweighted majority-class baseline came out to 75.8% — inflated, because a 3-student independent-study
+        section (almost always an A) counts the same as a 300-student lecture. Weighting by actual enrollment
+        (78.8%) is the honest number, and both the baseline and XGBoost training use it.
+      </div>
+    </section>
 
-  <section>
-    <h2>Confusion matrix</h2>
-    <table class="cm-table">
-      <thead>
-        <tr><th></th><th>Pred A</th><th>Pred AB</th><th>Pred B</th><th>Pred BC</th><th>Pred C</th></tr>
-      </thead>
-      <tbody>
-        <tr><td class="rowlabel">True A</td><td class="diag">8793</td><td>96</td><td>240</td><td>4</td><td>6</td></tr>
-        <tr><td class="rowlabel">True AB</td><td>575</td><td class="diag">120</td><td>71</td><td>1</td><td>0</td></tr>
-        <tr><td class="rowlabel">True B</td><td>295</td><td>29</td><td class="diag">252</td><td>1</td><td>3</td></tr>
-        <tr><td class="rowlabel">True BC</td><td>21</td><td>0</td><td>7</td><td class="diag">0</td><td>0</td></tr>
-        <tr><td class="rowlabel">True C</td><td>13</td><td>0</td><td>18</td><td>0</td><td class="diag">9</td></tr>
-      </tbody>
-    </table>
-  </section>
+    <section>
+      <div class="section-head">
+        <h2>Per-class results</h2>
+        <p class="section-desc">F1 score by grade, on the holdout year. The model is strong on the dominant A class and picks up real signal on B; AB/BC recall is weak — those grades sit in a band the available features don't separate well.</p>
+      </div>
 
-  <section>
-    <h2>Pipeline</h2>
-    <p>
-      Madgrades API and RateMyProfessor's GraphQL endpoint feed raw JSON into date-versioned GCS storage.
-      A BigQuery pipeline flattens per-section grade distributions, fuzzy-matches instructors across the two
-      sources (no shared ID between them), and builds a course-offering-level feature table. XGBoost is tuned
-      with Optuna and every run is tracked in MLflow. A Dockerized Cloud Run Job, triggered weekly by
-      Cloud Scheduler, keeps the dataset current.
-    </p>
-  </section>
+      <div class="barchart" id="f1chart" data-scores='[["A",0.934],["AB",0.237],["B",0.432],["BC",0.000],["C",0.310]]'></div>
+
+      <table>
+        <thead>
+          <tr><th>Grade</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>A</td><td>0.907</td><td>0.962</td><td>0.934</td><td>9,139</td></tr>
+          <tr><td>AB</td><td>0.490</td><td>0.156</td><td>0.237</td><td>767</td></tr>
+          <tr><td>B</td><td>0.429</td><td>0.434</td><td>0.432</td><td>580</td></tr>
+          <tr><td>BC</td><td>0.000</td><td>0.000</td><td>0.000</td><td>28</td></tr>
+          <tr><td>C</td><td>0.500</td><td>0.225</td><td>0.310</td><td>40</td></tr>
+        </tbody>
+      </table>
+      <p class="note">D and F grades are under 0.1% of all records and don't appear in the holdout year at all, so they're omitted from both charts above.</p>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Confusion matrix</h2>
+        <p class="section-desc">Row-normalized (% of each true grade's actual outcomes) — the honest view when one class dominates, since a raw-count heatmap would just show a single blazing cell for A→A and hide everything else.</p>
+      </div>
+      <div class="heatmap-wrap">
+        <table class="heatmap">
+          <thead>
+            <tr><th></th><th>Pred A</th><th>Pred AB</th><th>Pred B</th><th>Pred BC</th><th>Pred C</th></tr>
+          </thead>
+          <tbody>
+            <tr data-total="9139"><td>True A</td><td data-value="8793">8793</td><td data-value="96">96</td><td data-value="240">240</td><td data-value="4">4</td><td data-value="6">6</td></tr>
+            <tr data-total="767"><td>True AB</td><td data-value="575">575</td><td data-value="120">120</td><td data-value="71">71</td><td data-value="1">1</td><td data-value="0">0</td></tr>
+            <tr data-total="580"><td>True B</td><td data-value="295">295</td><td data-value="29">29</td><td data-value="252">252</td><td data-value="1">1</td><td data-value="3">3</td></tr>
+            <tr data-total="28"><td>True BC</td><td data-value="21">21</td><td data-value="0">0</td><td data-value="7">7</td><td data-value="0">0</td><td data-value="0">0</td></tr>
+            <tr data-total="40"><td>True C</td><td data-value="13">13</td><td data-value="0">0</td><td data-value="18">18</td><td data-value="0">0</td><td data-value="9">9</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="legend-scale"><span>0%</span><div class="ramp"></div><span>100% of row</span></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Pipeline</h2>
+        <p class="section-desc">Madgrades and RateMyProfessor feed date-versioned raw data into GCS, which flows through BigQuery into a feature table and a tuned, tracked model — with a scheduled job keeping it all current.</p>
+      </div>
+      <div class="diagram-frame">
+        <img src="assets/architecture.svg" alt="Pipeline architecture: Madgrades API and RateMyProfessor feed into GCS raw storage, then BigQuery, then a feature table, then XGBoost training tracked in MLflow and registered as a model. A Cloud Scheduler job triggers a Dockerized Cloud Run job weekly to refresh the whole pipeline.">
+      </div>
+
+      <ol class="pipeline-steps" style="margin-top:28px;">
+        <li><span class="step-num">1</span><div><div class="step-title">Ingest</div><div class="step-desc">Pull course/grade data from Madgrades' REST API and instructor ratings from RateMyProfessor's GraphQL endpoint.</div></div></li>
+        <li><span class="step-num">2</span><div><div class="step-title">Version</div><div class="step-desc">Write raw JSON to GCS under a date-stamped prefix — every pull is kept, nothing is overwritten.</div></div></li>
+        <li><span class="step-num">3</span><div><div class="step-title">Transform</div><div class="step-desc">Flatten section-level grade distributions, fuzzy-match instructor names across the two sources (no shared ID), load clean tables into BigQuery.</div></div></li>
+        <li><span class="step-num">4</span><div><div class="step-title">Train</div><div class="step-desc">Build the enrollment-weighted feature table, tune XGBoost with Optuna, track every run and register the best model in MLflow.</div></div></li>
+        <li><span class="step-num">5</span><div><div class="step-title">Automate</div><div class="step-desc">A Dockerized Cloud Run Job, triggered weekly by Cloud Scheduler, reruns the whole pipeline so the dataset stays current.</div></div></li>
+      </ol>
+    </section>
+
+  </div>
 
   <footer>
-    Full source, commit history, and every real bug found while building this (API field-name mismatches, a
-    case-sensitivity bug in the instructor fuzzy-matcher, a Cloud Run OOM, etc.) are on
-    <a href="https://github.com/RithikGobinath/CourseIQ">github.com/RithikGobinath/CourseIQ</a>.
+    <div class="wrap">
+      Full source, commit history, and every real bug found while building this (API field-name mismatches, a
+      case-sensitivity bug in the instructor fuzzy-matcher, a Cloud Run OOM, etc.) are on
+      <a href="https://github.com/RithikGobinath/CourseIQ">github.com/RithikGobinath/CourseIQ</a>.
+    </div>
   </footer>
 
-</div>
+<script>
+  // Bar chart: single series (F1 by grade), rendered from data rather than
+  // hand-picked widths so the bars stay correct if the numbers ever change.
+  (function () {
+    var el = document.getElementById('f1chart');
+    var scores = JSON.parse(el.dataset.scores);
+    scores.forEach(function (pair) {
+      var label = pair[0], value = pair[1];
+      var row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML =
+        '<div class="bar-label">' + label + '</div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(value * 100, 1.5) + '%"></div></div>' +
+        '<div class="bar-value">' + value.toFixed(3) + '</div>';
+      el.appendChild(row);
+    });
+  })();
+
+  // Heatmap: row-normalized sequential-blue interpolation, computed per cell
+  // rather than hand-picked so intensity always matches the real proportion.
+  (function () {
+    var c1 = [0x1a, 0x1a, 0x19], c2 = [0x39, 0x87, 0xe5];
+    document.querySelectorAll('.heatmap tbody tr').forEach(function (tr) {
+      var total = parseFloat(tr.dataset.total);
+      tr.querySelectorAll('td[data-value]').forEach(function (td) {
+        var v = parseFloat(td.dataset.value);
+        var t = total > 0 ? Math.min(1, v / total) : 0;
+        var rgb = c1.map(function (c, i) { return Math.round(c + (c2[i] - c) * t); });
+        td.style.background = 'rgb(' + rgb.join(',') + ')';
+        td.style.color = t > 0.28 ? '#ffffff' : '#7d7b76';
+      });
+    });
+  })();
+</script>
 </body>
 </html>
