@@ -27,8 +27,10 @@ gcloud run jobs deploy "${JOB_NAME}" \
   --set-env-vars "GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_RAW=courseiq-raw,BQ_DATASET=courseiq" \
   --set-secrets "MADGRADES_API_TOKEN=madgrades-api-token:latest" \
   --service-account "${SERVICE_ACCOUNT}" \
+  --memory 4Gi \
+  --cpu 2 \
   --max-retries 1 \
-  --task-timeout 7200
+  --task-timeout 10800
 
 echo "Creating/updating Cloud Scheduler job ${SCHEDULER_NAME}"
 gcloud scheduler jobs create http "${SCHEDULER_NAME}" \
